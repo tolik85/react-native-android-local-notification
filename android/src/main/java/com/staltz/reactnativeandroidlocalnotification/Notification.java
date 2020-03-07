@@ -1,5 +1,6 @@
 package com.staltz.reactnativeandroidlocalnotification;
 
+import android.app.NotificationChannel;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
@@ -19,6 +20,8 @@ import java.net.URL;
 import com.google.gson.Gson;
 
 import android.util.Base64;
+
+import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import android.text.Html;
 import android.util.Log;
@@ -34,6 +37,8 @@ public class Notification {
     private Context context;
     private int id;
     private NotificationAttributes attributes;
+    private final static String NOTIFICATION_CHANNEL_ID = "any_channel_id";
+    private final static String NOTIFICATION_CHANNEL_NAME = "any_channel_name";
 
     /**
      * Constructor.
@@ -112,12 +117,19 @@ public class Notification {
      * Build the notification.
      */
     public android.app.Notification build() {
-        androidx.core.app.NotificationCompat.Builder notificationBuilder = new androidx.core.app.NotificationCompat.Builder(
-                context);
+        NotificationChannel mChannel = null;
+        androidx.core.app.NotificationCompat.Builder notificationBuilder = null;
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            mChannel = createNotificationChannel();
+            notificationBuilder = new androidx.core.app.NotificationCompat.Builder(context, mChannel.getId());
+        } else {
+            notificationBuilder = new androidx.core.app.NotificationCompat.Builder(context);
+        }
 
         notificationBuilder.setContentTitle(attributes.subject).setContentText(attributes.message)
-                .setSmallIcon(
-                        context.getResources().getIdentifier(attributes.smallIcon, "mipmap", context.getPackageName()))
+                .setSmallIcon(context.getResources().getIdentifier(attributes.smallIcon, "mipmap", context.getPackageName()))
+                .setChannelId(NOTIFICATION_CHANNEL_ID)
                 .setAutoCancel(attributes.autoClear).setContentIntent(getContentIntent());
 
         if (attributes.priority != null) {
@@ -310,42 +322,42 @@ public class Notification {
 
         } else {
             switch (attributes.repeatType) {
-            case "time":
-                getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, attributes.repeatTime,
-                        pendingIntent);
-                Log.i("ReactSystemNotification", "Set " + attributes.repeatTime + "ms Alarm: " + id);
-                break;
+                case "time":
+                    getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, attributes.repeatTime,
+                            pendingIntent);
+                    Log.i("ReactSystemNotification", "Set " + attributes.repeatTime + "ms Alarm: " + id);
+                    break;
 
-            case "minute":
-                getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, 60000, pendingIntent);
-                Log.i("ReactSystemNotification", "Set Minute Alarm: " + id);
-                break;
+                case "minute":
+                    getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, 60000, pendingIntent);
+                    Log.i("ReactSystemNotification", "Set Minute Alarm: " + id);
+                    break;
 
-            case "hour":
-                getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, AlarmManager.INTERVAL_HOUR,
-                        pendingIntent);
-                Log.i("ReactSystemNotification", "Set Hour Alarm: " + id);
-                break;
+                case "hour":
+                    getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, AlarmManager.INTERVAL_HOUR,
+                            pendingIntent);
+                    Log.i("ReactSystemNotification", "Set Hour Alarm: " + id);
+                    break;
 
-            case "halfDay":
-                getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt,
-                        AlarmManager.INTERVAL_HALF_DAY, pendingIntent);
-                Log.i("ReactSystemNotification", "Set Half-Day Alarm: " + id);
-                break;
+                case "halfDay":
+                    getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt,
+                            AlarmManager.INTERVAL_HALF_DAY, pendingIntent);
+                    Log.i("ReactSystemNotification", "Set Half-Day Alarm: " + id);
+                    break;
 
-            case "day":
-            case "week":
-            case "month":
-            case "year":
-                getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, AlarmManager.INTERVAL_DAY,
-                        pendingIntent);
-                Log.i("ReactSystemNotification", "Set Day Alarm: " + id + ", Type: " + attributes.repeatType);
-                break;
+                case "day":
+                case "week":
+                case "month":
+                case "year":
+                    getAlarmManager().setRepeating(AlarmManager.RTC_WAKEUP, attributes.sendAt, AlarmManager.INTERVAL_DAY,
+                            pendingIntent);
+                    Log.i("ReactSystemNotification", "Set Day Alarm: " + id + ", Type: " + attributes.repeatType);
+                    break;
 
-            default:
-                getAlarmManager().set(AlarmManager.RTC_WAKEUP, attributes.sendAt, pendingIntent);
-                Log.i("ReactSystemNotification", "Set One-Time Alarm: " + id);
-                break;
+                default:
+                    getAlarmManager().set(AlarmManager.RTC_WAKEUP, attributes.sendAt, pendingIntent);
+                    Log.i("ReactSystemNotification", "Set One-Time Alarm: " + id);
+                    break;
             }
         }
 
@@ -429,5 +441,22 @@ public class Notification {
         notificationIntent.putExtra(NotificationPublisher.NOTIFICATION_ID, id);
 
         return PendingIntent.getBroadcast(context, id, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private NotificationChannel createNotificationChannel() {
+        String description = "Channel for Surance notification service";
+        NotificationManager mNotificationManager = getSysNotificationManager();
+        NotificationChannel mChannel = mNotificationManager.getNotificationChannel(NOTIFICATION_CHANNEL_ID);
+        if (mChannel == null) {
+            mChannel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+            mChannel.setDescription(description);
+            mChannel.setLightColor(Color.RED);
+            mChannel.enableVibration(false);
+            mChannel.setVibrationPattern(new long[]{100, 200, 300, 400, 500, 400, 300, 200, 400});
+            mNotificationManager.createNotificationChannel(mChannel);
+        }
+
+        return mChannel;
     }
 }
